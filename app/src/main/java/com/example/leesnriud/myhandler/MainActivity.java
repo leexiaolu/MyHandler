@@ -2,15 +2,21 @@ package com.example.leesnriud.myhandler;
 
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
+import android.widget.EditText;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 
 /**
  * android handler
@@ -37,18 +43,28 @@ public class MainActivity extends AppCompatActivity {
 
     int numstart = 0;
 
-    final Handler handler = new Handler(){
+    final Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
-            if(msg.what==0x123){
-                tvNum.setText(num[numstart++ % 5]+"");
+            if (msg.what == 0x123) {
+                tvNum.setText(num[numstart++ % 5] + "");
+            }else if(msg.what == 0x122){
+                tvHandler.setText(nums.toString());
             }
         }
     };
 
+    //handler使用在子线程
+    static final String UPPER_NUM = "upper";
+    CalThread calThread;
+    private List<Integer> nums;
+
     @BindView(R.id.tv_num)
     TextView tvNum;
-
+    @BindView(R.id.et_handler)
+    EditText etHandler;
+    @BindView(R.id.tv_handler)
+    TextView tvHandler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,6 +78,59 @@ public class MainActivity extends AppCompatActivity {
             public void run() {
                 handler.sendEmptyMessage(0x123);
             }
-        },0,1000);
+        }, 0, 1000);
+
+        //handler使用在子线程
+        calThread = new CalThread();
+        // 启动新线程
+        calThread.start();
     }
+
+    @OnClick(R.id.bt_handler)
+    public void onViewClicked() {
+        // 创建消息
+        Message msg = new Message();
+        msg.what = 0x111;
+        Bundle bundle = new Bundle();
+        bundle.putInt(UPPER_NUM ,
+                Integer.parseInt(etHandler.getText().toString()));
+        msg.setData(bundle);
+        // 向新线程中的Handler发送消息
+        calThread.mHandler.sendMessage(msg);
+    }
+
+    // 定义一个线程类
+    class CalThread extends Thread {
+        public Handler mHandler;
+
+        public void run() {
+            Looper.prepare();
+            mHandler = new Handler() {
+                // 定义处理消息的方法
+                @Override
+                public void handleMessage(Message msg) {
+                    if (msg.what == 0x111) {
+                        int upper = msg.getData().getInt(UPPER_NUM);
+                        nums = new ArrayList<Integer>();
+                        // 计算从2开始、到upper的所有质数
+                        outer:
+                        for (int i = 2; i <= upper; i++) {
+                            // 用i处于从2开始、到i的平方根的所有数
+                            for (int j = 2; j <= Math.sqrt(i); j++) {
+                                // 如果可以整除，表明这个数不是质数
+                                if (i != 2 && i % j == 0) {
+                                    continue outer;
+                                }
+                            }
+                            nums.add(i);
+                        }
+                        //使用handler更新UI线程
+                        handler.sendEmptyMessage(0x122);
+                    }
+                }
+            };
+            Looper.loop();
+        }
+    }
+
 }
